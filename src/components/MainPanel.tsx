@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { FileSystemState, ItemType } from '../types';
+import { FileSystemState, ItemType, FileSystemItem } from '../types';
+import { Dialog } from './Dialog';
 
 interface MainPanelProps {
   currentFolderId: string;
@@ -9,6 +10,21 @@ interface MainPanelProps {
   onCreate: (parentId: string, name: string, type: ItemType) => void;
   onRename: (id: string, newName: string) => void;
   onDelete: (id: string) => void;
+}
+
+function getBreadcrumb(
+  fileSystem: FileSystemState,
+  folderId: string
+): { id: string; name: string }[] {
+  const path: { id: string; name: string }[] = [];
+  let current: FileSystemItem | undefined = fileSystem[folderId];
+
+  while (current) {
+    path.unshift({ id: current.id, name: current.name });
+    current = current.parentId ? fileSystem[current.parentId] : undefined;
+  }
+
+  return path;
 }
 
 export const MainPanel: React.FC<MainPanelProps> = ({
@@ -22,16 +38,25 @@ export const MainPanel: React.FC<MainPanelProps> = ({
 }) => {
   const currentFolder = fileSystem[currentFolderId];
   const childrenIds = currentFolder?.children || [];
-  
+  const breadcrumb = getBreadcrumb(fileSystem, currentFolderId);
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [createType, setCreateType] = useState<ItemType | null>(null);
+  const [createName, setCreateName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const handleCreate = (type: ItemType) => {
-    const defaultName = type === 'folder' ? 'Untitled Folder' : 'untitled.txt';
-    const name = prompt(`Enter ${type} name:`, defaultName);
-    if (name && name.trim()) {
-      onCreate(currentFolderId, name.trim(), type);
+  const openCreateDialog = (type: ItemType) => {
+    setCreateType(type);
+    setCreateName(type === 'folder' ? 'Untitled Folder' : 'untitled.txt');
+  };
+
+  const submitCreate = () => {
+    if (createType && createName.trim()) {
+      onCreate(currentFolderId, createName.trim(), createType);
     }
+    setCreateType(null);
+    setCreateName('');
   };
 
   const startRename = (id: string, currentName: string, e: React.MouseEvent) => {
@@ -47,32 +72,53 @@ export const MainPanel: React.FC<MainPanelProps> = ({
     setEditingId(null);
   };
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm('Are you sure you want to delete this item?')) {
-      onDelete(id);
+  const confirmDelete = () => {
+    if (deleteTarget) {
+      onDelete(deleteTarget.id);
+      setDeleteTarget(null);
     }
   };
 
   return (
     <main className="flex-1 p-4 md:p-6 flex flex-col h-full overflow-y-auto bg-slate-50/50 select-none">
-      <div className="flex flex-col sm:flex-row gap-4 justify-between sm:items-center mb-6 border-b border-gray-200 pb-4">
-        <h2 className="text-lg md:text-xl font-bold text-gray-900 truncate flex items-center gap-2">
-          <span>📁</span> {currentFolder?.name || 'Unknown Folder'}
-        </h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleCreate('folder')}
-            className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-          >
-            📂 New Folder
-          </button>
-          <button
-            onClick={() => handleCreate('file')}
-            className="flex-1 sm:flex-initial bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            📄 New File
-          </button>
+      <div className="flex flex-col gap-3 mb-6 border-b border-gray-200 pb-4">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-gray-500 flex-wrap">
+          {breadcrumb.map((crumb, index) => (
+            <React.Fragment key={crumb.id}>
+              {index > 0 && <span className="text-gray-300">/</span>}
+              <button
+                type="button"
+                onClick={() => onSelectFolder(crumb.id)}
+                className={`hover:text-blue-600 transition-colors truncate max-w-[120px] sm:max-w-none ${
+                  crumb.id === currentFolderId ? 'text-blue-600 font-semibold' : ''
+                }`}
+              >
+                {crumb.name}
+              </button>
+            </React.Fragment>
+          ))}
+        </nav>
+
+        <div className="flex flex-col sm:flex-row gap-4 justify-between sm:items-center">
+          <h2 className="text-lg md:text-xl font-bold text-gray-900 truncate flex items-center gap-2">
+            <span>📁</span> {currentFolder?.name || 'Unknown Folder'}
+          </h2>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => openCreateDialog('folder')}
+              className="flex-1 sm:flex-initial bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            >
+              📂 New Folder
+            </button>
+            <button
+              type="button"
+              onClick={() => openCreateDialog('file')}
+              className="flex-1 sm:flex-initial bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              📄 New File
+            </button>
+          </div>
         </div>
       </div>
 
@@ -96,6 +142,11 @@ export const MainPanel: React.FC<MainPanelProps> = ({
                 role="button"
                 tabIndex={0}
                 onClick={() => !isEditing && (isFolder ? onSelectFolder(item.id) : onOpenFile(item.id))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isEditing) {
+                    isFolder ? onSelectFolder(item.id) : onOpenFile(item.id);
+                  }
+                }}
                 className="group relative flex flex-col items-center p-4 bg-white border border-gray-200 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 cursor-pointer transition-all outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <span className="text-4xl mb-3 transform group-hover:scale-110 transition-transform duration-200">
@@ -122,18 +173,25 @@ export const MainPanel: React.FC<MainPanelProps> = ({
                   </span>
                 )}
 
-                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity bg-white/95 p-1 rounded-xl shadow-sm border border-gray-100">
+                <div className="absolute top-2 right-2 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100 transition-opacity bg-white/95 p-1 rounded-xl shadow-sm border border-gray-100">
                   <button
+                    type="button"
                     onClick={(e) => startRename(id, item.name, e)}
                     className="text-xs hover:bg-gray-100 p-1.5 rounded-lg transition-colors"
                     title="Rename"
+                    aria-label={`Rename ${item.name}`}
                   >
                     ✏️
                   </button>
                   <button
-                    onClick={(e) => handleDelete(id, e)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteTarget({ id, name: item.name });
+                    }}
                     className="text-xs hover:bg-red-50 p-1.5 rounded-lg transition-colors"
                     title="Delete"
+                    aria-label={`Delete ${item.name}`}
                   >
                     🗑️
                   </button>
@@ -143,6 +201,47 @@ export const MainPanel: React.FC<MainPanelProps> = ({
           })}
         </div>
       )}
+
+      <Dialog
+        open={createType !== null}
+        title={createType === 'folder' ? 'New Folder' : 'New File'}
+        confirmLabel="Create"
+        onClose={() => setCreateType(null)}
+        onConfirm={submitCreate}
+      >
+        <label className="block text-sm text-gray-600 mb-2" htmlFor="create-name">
+          Name
+        </label>
+        <input
+          id="create-name"
+          type="text"
+          value={createName}
+          onChange={(e) => setCreateName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submitCreate();
+          }}
+          className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-gray-800"
+        />
+      </Dialog>
+
+      <Dialog
+        open={deleteTarget !== null}
+        title="Delete Item"
+        confirmLabel="Delete"
+        variant="danger"
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      >
+        <p className="text-sm text-gray-600">
+          Are you sure you want to delete{' '}
+          <span className="font-semibold text-gray-900">&quot;{deleteTarget?.name}&quot;</span>?
+          {fileSystem[deleteTarget?.id ?? '']?.type === 'folder' && (
+            <span className="block mt-1 text-red-600 text-xs">
+              All contents inside this folder will also be deleted.
+            </span>
+          )}
+        </p>
+      </Dialog>
     </main>
   );
 };

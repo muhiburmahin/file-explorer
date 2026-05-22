@@ -1,34 +1,30 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useFileSystem } from '../hooks/useFileSystem';
 import { Sidebar } from '../components/Sidebar';
 import { MainPanel } from '../components/MainPanel'; 
 import { FileEditor } from '../components/FileEditor'; 
 
 export default function Home() {
-  const { 
-    fileSystem, 
-    createItem, 
-    renameItem, 
-    deleteItem, 
-    updateFileContent 
+  const {
+    fileSystem,
+    isReady,
+    createItem,
+    renameItem,
+    deleteItem,
+    updateFileContent,
   } = useFileSystem();
-  
+
   const [currentFolderId, setCurrentFolderId] = useState<string>('root');
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const handleSelectFolder = (id: string) => {
     setCurrentFolderId(id);
     setActiveFileId(null);
   };
 
-  if (!isMounted) {
+  if (!isReady) {
     return <div className="min-h-screen w-full bg-gray-50" />;
   }
 
@@ -48,10 +44,7 @@ export default function Home() {
             <FileEditor
               fileName={fileSystem[activeFileId].name}
               initialContent={fileSystem[activeFileId].content || ''}
-              onSave={(newContent) => {
-                updateFileContent(activeFileId, newContent);
-                alert('File saved successfully!');
-              }}
+              onSave={(newContent) => updateFileContent(activeFileId, newContent)}
               onClose={() => setActiveFileId(null)}
             />
           </div>
