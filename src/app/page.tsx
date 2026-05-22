@@ -1,12 +1,12 @@
-// src/app/page.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFileSystem } from '../hooks/useFileSystem';
 import { Sidebar } from '../components/Sidebar';
+import { MainPanel } from '../components/MainPanel'; 
+import { FileEditor } from '../components/FileEditor'; 
 
 export default function Home() {
-  // ১. কাস্টম হুক থেকে সব স্টেট এবং ফাংশন নিয়ে আসা
   const { 
     fileSystem, 
     createItem, 
@@ -15,30 +15,63 @@ export default function Home() {
     updateFileContent 
   } = useFileSystem();
   
-  // ২. কোন ফোল্ডারটি বর্তমানে ওপেন আছে তা ট্র্যাক করার স্টেট (ডিফল্ট: root)
   const [currentFolderId, setCurrentFolderId] = useState<string>('root');
-  
-  // ৩. কোন ফাইলটি বর্তমানে ওপেন বা এডিট করা হচ্ছে তা ট্র্যাক করার স্টেট
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // ফোল্ডার সিলেক্ট করার হ্যান্ডলার
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const handleSelectFolder = (id: string) => {
     setCurrentFolderId(id);
-    setActiveFileId(null); // ফোল্ডার চেঞ্জ করলে ফাইল এডিটর বন্ধ হয়ে যাবে
+    setActiveFileId(null);
   };
 
+  if (!isMounted) {
+    return <div className="min-h-screen w-full bg-gray-50" />;
+  }
+
   return (
-    <div className="flex h-screen w-screen bg-gray-50 text-gray-800 font-sans overflow-hidden">
-      
-      {/* 📁 বাম পাশের সাইডবার প্যানেল */}
-      <Sidebar
-        fileSystem={fileSystem}
-        currentFolderId={currentFolderId}
-        onSelectFolder={handleSelectFolder}
-      />
+    <div className="flex flex-col md:flex-row min-h-screen w-full bg-gray-50 text-gray-800 font-sans overflow-hidden">
+       <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-200 bg-white shrink-0 max-h-[40vh] md:max-h-screen overflow-y-auto">
+        <Sidebar
+          fileSystem={fileSystem}
+          currentFolderId={currentFolderId}
+          onSelectFolder={handleSelectFolder}
+        />
+      </div>
 
-   
-
+      <div className="flex-1 min-w-0 h-[60vh] md:h-screen flex flex-col bg-slate-50 overflow-hidden">
+        {activeFileId && fileSystem[activeFileId] ? (
+          <div className="p-4 md:p-6 h-full flex-1 overflow-hidden">
+            <FileEditor
+              fileName={fileSystem[activeFileId].name}
+              initialContent={fileSystem[activeFileId].content || ''}
+              onSave={(newContent) => {
+                updateFileContent(activeFileId, newContent);
+                alert('File saved successfully!');
+              }}
+              onClose={() => setActiveFileId(null)}
+            />
+          </div>
+        ) : (
+          <MainPanel
+            currentFolderId={currentFolderId}
+            fileSystem={fileSystem}
+            onSelectFolder={handleSelectFolder}
+            onOpenFile={(id) => setActiveFileId(id)}
+            onCreate={createItem}
+            onRename={renameItem}
+            onDelete={(id) => {
+              deleteItem(id);
+              if (id === currentFolderId) {
+                setCurrentFolderId('root');
+              }
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
